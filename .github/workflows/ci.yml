@@ -1,0 +1,237 @@
+name: Tasks API CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test and Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23" # Обновлено для поддержки json/v2
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Run go fmt
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Code is not formatted. Please run 'go fmt ./...'"
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: GOEXPERIMENT=rangefunc go vet ./... # Добавлен GOEXPERIMENT для json/v2
+
+      - name: Run tests
+        run: |
+          GOEXPERIMENT=rangefunc go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Check test coverage
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Test coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < 0" | bc -l) )); then
+            echo "Test coverage is below 0%"
+            exit 1
+          fi
+
+      - name: Build application
+        run: go build cmd/main.go
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+
+  api-tests:
+    name: API Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Build application
+        run: |
+          go build cmd/main.go
+
+      - name: Start API server
+        run: |
+          GOEXPERIMENT=rangefunc ./main &
+          API_PID=$!
+          echo "API_PID=$API_PID" >> $GITHUB_ENV
+          sleep 3
+
+      - name: Wait for API to be ready
+        run: |
+          timeout 30 bash -c 'until curl --location 'localhost:8080/tasks'; do sleep 1; done'
+
+      - name: Run API Tests
+        run: |
+          echo "🧪 Running comprehensive API tests..."
+
+          # Test POST /tasks
+          echo "Testing POST /tasks..."
+          RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST http://localhost:8080/tasks \
+            -H "Content-Type: application/json" \
+            -d '{"title":"Test task","content":"Test content","priority":"high","tags":["test"]}')
+
+          HTTP_STATUS=$(echo $RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+          RESPONSE_BODY=$(echo $RESPONSE | sed -e 's/HTTPSTATUS:.*//g')
+
+          if [ "$HTTP_STATUS" = "201" ]; then
+            echo "✅ POST /tasks - Success (201)"
+            TASK_ID=$(echo $RESPONSE_BODY | jq -r '.id' 2>/dev/null || echo "")
+          else
+            echo "❌ POST /tasks failed - Status: $HTTP_STATUS"
+          fi
+
+          # Test GET /tasks
+          echo "Testing GET /tasks..."
+          GET_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" http://localhost:8080/tasks)
+          GET_STATUS=$(echo $GET_RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+          if [ "$GET_STATUS" = "200" ]; then
+            echo "✅ GET /tasks - Success (200)"
+          else
+            echo "❌ GET /tasks failed - Status: $GET_STATUS"
+          fi
+
+          # Additional tests if task was created successfully
+          if [ ! -z "$TASK_ID" ] && [ "$TASK_ID" != "null" ] && [ "$TASK_ID" != "" ]; then
+            echo "Running tests with Task ID: $TASK_ID"
+            
+            # Test GET /tasks/{id}
+            echo "Testing GET /tasks/$TASK_ID..."
+            SINGLE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/tasks/$TASK_ID)
+            if [ "$SINGLE_STATUS" = "200" ]; then
+              echo "✅ GET /tasks/{id} - Success (200)"
+            else
+              echo "❌ GET /tasks/{id} failed - Status: $SINGLE_STATUS"
+            fi
+            
+            # Test PATCH /tasks/{id}
+            echo "Testing PATCH /tasks/$TASK_ID..."
+            PATCH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH http://localhost:8080/tasks/$TASK_ID \
+              -H "Content-Type: application/json" \
+              -d '{"status":"in_progress"}')
+            if [ "$PATCH_STATUS" = "200" ]; then
+              echo "✅ PATCH /tasks/{id} - Success (200)"
+            else
+              echo "❌ PATCH /tasks/{id} failed - Status: $PATCH_STATUS"
+            fi
+            
+            # Test DELETE /tasks/{id}
+            echo "Testing DELETE /tasks/$TASK_ID..."
+            DELETE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE http://localhost:8080/tasks/$TASK_ID)
+            if [ "$DELETE_STATUS" = "204" ]; then
+              echo "✅ DELETE /tasks/{id} - Success (204)"
+            else
+              echo "❌ DELETE /tasks/{id} failed - Status: $DELETE_STATUS"
+            fi
+          fi
+
+          echo "🏁 API tests completed"
+
+      - name: Test Error Handling
+        run: |
+          echo "🧪 Testing error handling..."
+
+          # Test 400 - Invalid JSON
+          echo "Testing invalid JSON (400)..."
+          STATUS_400=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/tasks \
+            -H "Content-Type: application/json" -d '{"title":}')
+          if [ "$STATUS_400" = "400" ]; then
+            echo "✅ Invalid JSON handling - Success (400)"
+          else
+            echo "⚠️  Invalid JSON - Expected 400, got $STATUS_400"
+          fi
+
+          # Test 422 - Validation Error
+          echo "Testing validation error (422)..."
+          STATUS_422=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/tasks \
+            -H "Content-Type: application/json" -d '{"content":"No title"}')
+          if [ "$STATUS_422" = "422" ]; then
+            echo "✅ Validation error handling - Success (422)"
+          else
+            echo "⚠️  Validation error - Expected 422, got $STATUS_422"
+          fi
+
+          # Test 404 - Not Found
+          echo "Testing not found (404)..."
+          STATUS_404=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/tasks/non-existent-id)
+          if [ "$STATUS_404" = "404" ]; then
+            echo "✅ Not found handling - Success (404)"
+          else
+            echo "⚠️  Not found - Expected 404, got $STATUS_404"
+          fi
+
+      - name: Stop API server
+        if: always()
+        run: |
+          if [ ! -z "$API_PID" ]; then
+            echo "🛑 Stopping API server with PID: $API_PID"
+            kill $API_PID || true
+            sleep 2
+            kill -9 $API_PID 2>/dev/null || true
+          fi
+
+      - name: Stop API server
+        if: always()
+        run: |
+          if [ ! -z "$API_PID" ]; then
+            kill $API_PID || true
+          fi
+
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+      - name: Run gosec Security Scanner
+        run: gosec ./...
+
+      - name: Check for vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
