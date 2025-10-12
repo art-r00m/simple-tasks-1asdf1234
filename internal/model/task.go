@@ -5,30 +5,39 @@ import (
 	"time"
 )
 
-type Status = int
+type Status = string
 
 const (
-	status_todo = iota
-	status_in_proress
-	status_done
+	StatusTodo       = "todo"
+	StatusInProgress = "in_proress"
+	StatusDone       = "done"
 )
 
-type Priority = int
+type Priority = string
 
 const (
-	priotity_low = iota
-	priotity_normal
-	priotity_high
+	PriorityLow    = "low"
+	PriorityNormal = "normal"
+	PriorityHigh   = "high"
 )
 
 type Task struct {
-	Id        uuid.UUID
-	Title     string
-	Content   string
-	Status    Status
-	Priority  Priority
-	Tags      []string
-	DueDate   time.Time
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Id        uuid.UUID  `json:"id"`
+	Title     string     `json:"title" validate:"required,gte=1,lte=200"`
+	Content   string     `json:"content" validate:"lte=5000"`
+	Status    Status     `json:"status" validate:"omitempty,oneof=todo in_progress done"`
+	Priority  Priority   `json:"priority" validate:"omitempty,oneof=low normal high"`
+	Tags      []string   `json:"tags" validate:"lte=10,dive,gte=1,lte=32"`
+	DueDate   *time.Time `json:"dueDate"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
+}
+
+func (t *Task) SetDefaultValues() {
+	if t.Status == "" {
+		t.Status = StatusTodo
+	}
+	if t.Priority == "" {
+		t.Priority = PriorityLow
+	}
 }

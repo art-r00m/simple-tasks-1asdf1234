@@ -8,7 +8,7 @@ import (
 )
 
 type TaskRepository interface {
-	SaveTask(model.Task) error
+	SaveTask(model.Task)
 	GetTasks() []model.Task
 	GetTaskById(uuid.UUID) (model.Task, error)
 	UpdateTask(model.Task) error
@@ -29,18 +29,10 @@ func NewInMemoryTaskRepository() *InMemoryTaskRepository {
 
 // TODO: errors
 
-func (r *InMemoryTaskRepository) SaveTask(task model.Task) error {
-	r.mu.RLock()
-	if _, ok := r.tasks[task.Id]; ok {
-		return errors.New("task already exists")
-	}
-	r.mu.RUnlock()
-
+func (r *InMemoryTaskRepository) SaveTask(task model.Task) {
 	r.mu.Lock()
 	r.tasks[task.Id] = task
 	r.mu.Unlock()
-
-	return nil
 }
 
 func (r *InMemoryTaskRepository) GetTasks() []model.Task {
