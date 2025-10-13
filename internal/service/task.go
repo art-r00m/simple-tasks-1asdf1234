@@ -74,3 +74,7 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, request *mod
 	}
 	return task, nil
 }
+
+func (s *TaskService) DeleteTask(ctx context.Context, uuid uuid.UUID) {
+	s.repo.DeleteTask(uuid)
+}

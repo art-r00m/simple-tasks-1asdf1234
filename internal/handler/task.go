@@ -170,5 +170,16 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TaskHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
-	h.log.Info("DeleteTask")
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "invalid id", slog.String("error", err.Error()))
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))
+		return
+	}
+
+	h.service.DeleteTask(context.TODO(), id)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNoContent)
 }
