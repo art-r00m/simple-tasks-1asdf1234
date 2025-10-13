@@ -21,7 +21,7 @@ func NewTaskService(log *slog.Logger, repo store.TaskRepository) *TaskService {
 	}
 }
 
-func (s *TaskService) CreateTask(ctx context.Context, t model.Task) model.Task {
+func (s *TaskService) CreateTask(ctx context.Context, t *model.Task) *model.Task {
 	t.Id = uuid.New()
 	t.CreatedAt = time.Now()
 	t.UpdatedAt = t.CreatedAt

@@ -12,28 +12,28 @@ import (
 )
 
 type TaskRepository interface {
-	SaveTask(model.Task)
+	SaveTask(*model.Task)
 	GetTasks(*model.GetTasksRequest) *model.GetTasksResponse
-	GetTaskById(uuid.UUID) (model.Task, error)
-	UpdateTask(model.Task) error
+	GetTaskById(uuid.UUID) (*model.Task, error)
+	UpdateTask(*model.Task) error
 	DeleteTask(uuid.UUID)
 }
 
 type InMemoryTaskRepository struct {
 	mu    sync.RWMutex
-	tasks map[uuid.UUID]model.Task
+	tasks map[uuid.UUID]*model.Task
 }
 
 func NewInMemoryTaskRepository() *InMemoryTaskRepository {
 	return &InMemoryTaskRepository{
 		mu:    sync.RWMutex{},
-		tasks: make(map[uuid.UUID]model.Task),
+		tasks: make(map[uuid.UUID]*model.Task),
 	}
 }
 
 // TODO: errors
 
-func (r *InMemoryTaskRepository) SaveTask(task model.Task) {
+func (r *InMemoryTaskRepository) SaveTask(task *model.Task) {
 	r.mu.Lock()
 	r.tasks[task.Id] = task
 	r.mu.Unlock()
@@ -41,7 +41,7 @@ func (r *InMemoryTaskRepository) SaveTask(task model.Task) {
 
 func (r *InMemoryTaskRepository) GetTasks(request *model.GetTasksRequest) *model.GetTasksResponse {
 	slices.Sort(request.Tags)
-	tasks := make([]model.Task, 0)
+	tasks := make([]*model.Task, 0)
 
 	r.mu.RLock()
 	for _, task := range r.tasks {
@@ -107,17 +107,17 @@ func (r *InMemoryTaskRepository) GetTasks(request *model.GetTasksRequest) *model
 	}
 }
 
-func (r *InMemoryTaskRepository) GetTaskById(id uuid.UUID) (model.Task, error) {
+func (r *InMemoryTaskRepository) GetTaskById(id uuid.UUID) (*model.Task, error) {
 	r.mu.RLock()
 	if task, ok := r.tasks[id]; ok {
 		return task, nil
 	}
 	r.mu.RUnlock()
 
-	return model.Task{}, errors.New("task not found")
+	return nil, errors.New("task not found")
 }
 
-func (r *InMemoryTaskRepository) UpdateTask(newTask model.Task) error {
+func (r *InMemoryTaskRepository) UpdateTask(newTask *model.Task) error {
 	r.mu.RLock()
 	if _, ok := r.tasks[newTask.Id]; !ok {
 		return errors.New("task not found")

@@ -5,6 +5,7 @@ import (
 	json2 "encoding/json"
 	"fmt"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"log/slog"
 	"net/http"
 	"simple-tasks/internal/middleware"
@@ -54,7 +55,7 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdTask := h.service.CreateTask(context.TODO(), newTask)
+	createdTask := h.service.CreateTask(context.TODO(), &newTask)
 
 	w.Header().Set("Location", fmt.Sprintf("/tasks/%s", createdTask.Id))
 	w.Header().Set("Content-Type", "application/json")
@@ -94,7 +95,7 @@ func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "invalid request", validateErr.Error())
 
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		_ = json2.NewEncoder(w).Encode(Response{Error: validateErr.Error(), RequestId: "123"})
+		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))
 		return
 	}
 
@@ -106,7 +107,17 @@ func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TaskHandler) GetTaskById(w http.ResponseWriter, r *http.Request) {
-	h.log.Info("GetTaskById")
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "invalid id", slog.String("error", err.Error()))
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))
+		return
+	}
+
+	//h.service.
+
+	h.log.InfoContext(r.Context(), "GetTaskById", id)
 }
 
 func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
