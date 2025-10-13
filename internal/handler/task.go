@@ -39,6 +39,7 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 
 	if err := json2.NewDecoder(r.Body).Decode(&newTask); err != nil {
 		h.log.ErrorContext(r.Context(), "invalid json", slog.String("error", err.Error()))
+
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))
 		return
@@ -47,7 +48,8 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	if err := validator.New().Struct(newTask); err != nil {
 		validateErr := err.(validator.ValidationErrors)
 		h.log.ErrorContext(r.Context(), "invalid task", slog.String("error", validateErr.Error()))
-		w.WriteHeader(http.StatusBadRequest)
+
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))
 		return
 	}
@@ -90,6 +92,8 @@ func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 	if err := validator.New().Struct(req); err != nil {
 		validateErr := err.(validator.ValidationErrors)
 		h.log.ErrorContext(r.Context(), "invalid request", validateErr.Error())
+
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		_ = json2.NewEncoder(w).Encode(Response{Error: validateErr.Error(), RequestId: "123"})
 		return
 	}
