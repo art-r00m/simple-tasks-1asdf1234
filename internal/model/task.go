@@ -65,3 +65,12 @@ type GetTasksResponse struct {
 	Total      int     `json:"total"`
 	TotalPages *int    `json:"totalPages,omitempty"`
 }
+
+type UpdateTaskRequest struct {
+	Title    string     `json:"title,omitempty" validate:"omitempty,gte=1,lte=200"`
+	Content  string     `json:"content,omitempty" validate:"omitempty,lte=5000"`
+	Status   Status     `json:"status,omitempty" validate:"omitempty,oneof=todo in_progress done"`
+	Priority Priority   `json:"priority,omitempty" validate:"omitempty,oneof=low normal high"`
+	Tags     []string   `json:"tags,omitempty" validate:"omitempty,lte=10,dive,gte=1,lte=32"`
+	DueDate  *time.Time `json:"dueDate,omitempty"`
+}

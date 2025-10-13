@@ -109,10 +109,10 @@ func (r *InMemoryTaskRepository) GetTasks(request *model.GetTasksRequest) *model
 
 func (r *InMemoryTaskRepository) GetTaskById(id uuid.UUID) (*model.Task, error) {
 	r.mu.RLock()
+	defer r.mu.RUnlock()
 	if task, ok := r.tasks[id]; ok {
 		return task, nil
 	}
-	r.mu.RUnlock()
 
 	return nil, errors.New("task not found")
 }
@@ -120,6 +120,7 @@ func (r *InMemoryTaskRepository) GetTaskById(id uuid.UUID) (*model.Task, error) 
 func (r *InMemoryTaskRepository) UpdateTask(newTask *model.Task) error {
 	r.mu.RLock()
 	if _, ok := r.tasks[newTask.Id]; !ok {
+		r.mu.RUnlock()
 		return errors.New("task not found")
 	}
 	r.mu.RUnlock()

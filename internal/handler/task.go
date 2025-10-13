@@ -129,7 +129,44 @@ func (h *TaskHandler) GetTaskById(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
-	h.log.Info("UpdateTask")
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "invalid id", slog.String("error", err.Error()))
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))
+		return
+	}
+
+	var req model.UpdateTaskRequest
+	if err := json2.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.log.ErrorContext(r.Context(), "invalid json", slog.String("error", err.Error()))
+
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))
+		return
+	}
+
+	if err := validator.New().Struct(req); err != nil {
+		validateErr := err.(validator.ValidationErrors)
+		h.log.ErrorContext(r.Context(), "invalid task", slog.String("error", validateErr.Error()))
+
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))
+		return
+	}
+
+	newTask, err := h.service.UpdateTask(context.TODO(), id, &req)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "task update failed", slog.String("error", err.Error()))
+
+		w.WriteHeader(http.StatusNotFound)
+		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json2.NewEncoder(w).Encode(newTask)
 }
 
 func (h *TaskHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
