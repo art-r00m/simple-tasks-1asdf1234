@@ -36,3 +36,7 @@ func (s *TaskService) CreateTask(ctx context.Context, t *model.Task) *model.Task
 func (s *TaskService) GetTasks(ctx context.Context, request *model.GetTasksRequest) *model.GetTasksResponse {
 	return s.repo.GetTasks(request)
 }
+
+func (s *TaskService) GetTaskById(ctx context.Context, uuid uuid.UUID) (*model.Task, error) {
+	return s.repo.GetTaskById(uuid)
+}

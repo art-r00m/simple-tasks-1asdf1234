@@ -115,9 +115,17 @@ func (h *TaskHandler) GetTaskById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//h.service.
+	task, err := h.service.GetTaskById(context.TODO(), id)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "task not found", slog.String("error", err.Error()))
+		w.WriteHeader(http.StatusNotFound)
+		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))
+		return
+	}
 
-	h.log.InfoContext(r.Context(), "GetTaskById", id)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json2.NewEncoder(w).Encode(task)
 }
 
 func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
