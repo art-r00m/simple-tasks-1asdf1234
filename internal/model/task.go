@@ -33,7 +33,7 @@ type Task struct {
 	UpdatedAt time.Time  `json:"updatedAt"`
 }
 
-func (t *Task) SetDefaultValues() {
+func (t *Task) SetDefaults() {
 	if t.Status == "" {
 		t.Status = StatusTodo
 	}

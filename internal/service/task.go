@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"github.com/google/uuid"
 	"log/slog"
 	"simple-tasks/internal/model"
@@ -20,23 +21,18 @@ func NewTaskService(log *slog.Logger, repo store.TaskRepository) *TaskService {
 	}
 }
 
-func (s *TaskService) CreateTask(t model.Task) (model.Task, error) {
-	id, err := uuid.NewUUID()
-	if err != nil {
-		s.log.Error("Failed to create UUID", "error", err)
-		return model.Task{}, err
-	}
-
-	t.Id = id
+func (s *TaskService) CreateTask(ctx context.Context, t model.Task) model.Task {
+	t.Id = uuid.New()
 	t.CreatedAt = time.Now()
 	t.UpdatedAt = t.CreatedAt
-	t.SetDefaultValues()
+	t.SetDefaults()
 
 	s.repo.SaveTask(t)
-	return t, nil
+
+	return t
 }
 
 // TODO: Using DTO of model layer looks cringe
-func (s *TaskService) GetTasks(request *model.GetTasksRequest) *model.GetTasksResponse {
+func (s *TaskService) GetTasks(ctx context.Context, request *model.GetTasksRequest) *model.GetTasksResponse {
 	return s.repo.GetTasks(request)
 }

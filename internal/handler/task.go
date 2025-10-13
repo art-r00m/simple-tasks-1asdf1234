@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"context"
 	json2 "encoding/json"
 	"fmt"
 	"github.com/go-playground/validator/v10"
 	"log/slog"
 	"net/http"
+	"simple-tasks/internal/middleware"
 	"simple-tasks/internal/model"
 	"simple-tasks/internal/service"
 	"strconv"
@@ -28,28 +30,29 @@ func NewTaskHandler(log *slog.Logger, service *service.TaskService) *TaskHandler
 	}
 }
 
+func newErrorResponse(ctx context.Context, err error) *Response {
+	return &Response{Error: err.Error(), RequestId: ctx.Value(middleware.RequestId).(string)}
+}
+
 func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	var newTask model.Task
 
 	if err := json2.NewDecoder(r.Body).Decode(&newTask); err != nil {
-		h.log.Error(err.Error())
-		_ = json2.NewEncoder(w).Encode(Response{Error: err.Error(), RequestId: "123"})
+		h.log.ErrorContext(r.Context(), "invalid json", slog.String("error", err.Error()))
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))
 		return
 	}
 
 	if err := validator.New().Struct(newTask); err != nil {
 		validateErr := err.(validator.ValidationErrors)
-		h.log.Error("invalid request", validateErr.Error())
-		_ = json2.NewEncoder(w).Encode(Response{Error: validateErr.Error(), RequestId: "123"})
+		h.log.ErrorContext(r.Context(), "invalid task", slog.String("error", validateErr.Error()))
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))
 		return
 	}
 
-	createdTask, err := h.service.CreateTask(newTask)
-	if err != nil {
-		h.log.Error(err.Error())
-		_ = json2.NewEncoder(w).Encode(Response{Error: err.Error(), RequestId: "123"})
-		return
-	}
+	createdTask := h.service.CreateTask(context.TODO(), newTask)
 
 	w.Header().Set("Location", fmt.Sprintf("/tasks/%s", createdTask.Id))
 	w.Header().Set("Content-Type", "application/json")
@@ -71,7 +74,7 @@ func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		if page, err := strconv.Atoi(pageStr); err == nil {
 			req.Page = &page
 		} else {
-			h.log.Info("invalid page", err.Error())
+			h.log.ErrorContext(r.Context(), "invalid page", err.Error())
 		}
 	}
 
@@ -80,18 +83,18 @@ func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		if pageSize, err := strconv.Atoi(pageSizeStr); err == nil {
 			req.PageSize = &pageSize
 		} else {
-			h.log.Info("invalid pageSize", err.Error())
+			h.log.ErrorContext(r.Context(), "invalid pageSize", err.Error())
 		}
 	}
 
 	if err := validator.New().Struct(req); err != nil {
 		validateErr := err.(validator.ValidationErrors)
-		h.log.Error("invalid request", validateErr.Error())
+		h.log.ErrorContext(r.Context(), "invalid request", validateErr.Error())
 		_ = json2.NewEncoder(w).Encode(Response{Error: validateErr.Error(), RequestId: "123"})
 		return
 	}
 
-	tasks := h.service.GetTasks(req)
+	tasks := h.service.GetTasks(context.TODO(), req)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

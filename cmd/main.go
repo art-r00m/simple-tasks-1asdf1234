@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"simple-tasks/internal/handler"
+	"simple-tasks/internal/middleware"
 	"simple-tasks/internal/service"
 	"simple-tasks/internal/store"
 	"strconv"
@@ -34,8 +35,10 @@ func (c *config) String() string {
 func main() {
 	config := getConfig()
 
-	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	log.Info("Starting server", slog.String("config", config.String()))
+	textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+	requestIdHandler := middleware.NewHandlerMiddleware(textHandler)
+	log := slog.New(requestIdHandler)
+	log.Info("starting server", slog.String("config", config.String()))
 
 	taskRepo := store.NewInMemoryTaskRepository()
 	taskService := service.NewTaskService(log, taskRepo)
@@ -48,9 +51,12 @@ func main() {
 	mux.HandleFunc("PATCH /tasks/{id}", taskHandler.UpdateTask)
 	mux.HandleFunc("DELETE /tasks/{id}", taskHandler.DeleteTask)
 
+	logMiddleware := func(h http.Handler) http.Handler {
+		return middleware.LogMiddleware(log, h)
+	}
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.port),
-		Handler: mux,
+		Handler: middleware.RequestIdMiddleware(logMiddleware(mux)),
 	}
 
 	if err := server.ListenAndServe(); err != nil {
