@@ -28,7 +28,7 @@ type Task struct {
 	Status    Status     `json:"status" validate:"omitempty,oneof=todo in_progress done"`
 	Priority  Priority   `json:"priority" validate:"omitempty,oneof=low normal high"`
 	Tags      []string   `json:"tags" validate:"lte=10,dive,gte=1,lte=32"`
-	DueDate   *time.Time `json:"dueDate"`
+	DueDate   *time.Time `json:"dueDate,omitempty"`
 	CreatedAt time.Time  `json:"createdAt"`
 	UpdatedAt time.Time  `json:"updatedAt"`
 }
@@ -40,4 +40,28 @@ func (t *Task) SetDefaultValues() {
 	if t.Priority == "" {
 		t.Priority = PriorityLow
 	}
+}
+
+type Sort = string
+
+const (
+	SortPriority = "priority"
+	SortDesc     = "desc"
+)
+
+type GetTasksRequest struct {
+	Status   string
+	Tags     []string
+	Q        string
+	Sort     Sort `validate:"omitempty,oneof=priority desc"`
+	Page     *int `validate:"omitempty,gte=0"`
+	PageSize *int `validate:"omitempty,gte=1,lte=100"`
+}
+
+type GetTasksResponse struct {
+	Tasks      []Task `json:"items,omitempty"`
+	Page       *int   `json:"page,omitempty"`
+	PageSize   *int   `json:"pageSize,omitempty"`
+	Total      int    `json:"total"`
+	TotalPages *int   `json:"totalPages,omitempty"`
 }

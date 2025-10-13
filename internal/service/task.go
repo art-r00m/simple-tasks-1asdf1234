@@ -29,9 +29,14 @@ func (s *TaskService) CreateTask(t model.Task) (model.Task, error) {
 
 	t.Id = id
 	t.CreatedAt = time.Now()
-	t.UpdatedAt = time.Now()
+	t.UpdatedAt = t.CreatedAt
 	t.SetDefaultValues()
 
 	s.repo.SaveTask(t)
 	return t, nil
+}
+
+// TODO: Using DTO of model layer looks cringe
+func (s *TaskService) GetTasks(request *model.GetTasksRequest) *model.GetTasksResponse {
+	return s.repo.GetTasks(request)
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"simple-tasks/internal/model"
 	"simple-tasks/internal/service"
+	"strconv"
 )
 
 type Response struct {
@@ -57,7 +58,44 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
-	h.log.Info("GetTasks")
+	query := r.URL.Query()
+	req := &model.GetTasksRequest{
+		Status: query.Get("status"),
+		Tags:   query["tags"],
+		Q:      query.Get("q"),
+		Sort:   query.Get("sort"),
+	}
+
+	pageStr := r.URL.Query().Get("page")
+	if pageStr != "" {
+		if page, err := strconv.Atoi(pageStr); err == nil {
+			req.Page = &page
+		} else {
+			h.log.Info("invalid page", err.Error())
+		}
+	}
+
+	pageSizeStr := r.URL.Query().Get("pageSize")
+	if pageSizeStr != "" {
+		if pageSize, err := strconv.Atoi(pageSizeStr); err == nil {
+			req.PageSize = &pageSize
+		} else {
+			h.log.Info("invalid pageSize", err.Error())
+		}
+	}
+
+	if err := validator.New().Struct(req); err != nil {
+		validateErr := err.(validator.ValidationErrors)
+		h.log.Error("invalid request", validateErr.Error())
+		_ = json2.NewEncoder(w).Encode(Response{Error: validateErr.Error(), RequestId: "123"})
+		return
+	}
+
+	tasks := h.service.GetTasks(req)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json2.NewEncoder(w).Encode(tasks)
 }
 
 func (h *TaskHandler) GetTaskById(w http.ResponseWriter, r *http.Request) {

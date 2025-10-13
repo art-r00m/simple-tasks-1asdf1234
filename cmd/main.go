@@ -18,7 +18,7 @@ type config struct {
 func getConfig() config {
 	port, err := strconv.Atoi(os.Getenv("PORT"))
 	if err != nil {
-		println("port must be an integer: %v", err)
+		println("invalid port: %v", err)
 		os.Exit(1)
 	}
 
