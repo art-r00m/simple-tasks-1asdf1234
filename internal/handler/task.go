@@ -77,7 +77,7 @@ func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		if page, err := strconv.Atoi(pageStr); err == nil {
 			req.Page = &page
 		} else {
-			h.log.ErrorContext(r.Context(), "invalid page", err.Error())
+			h.log.ErrorContext(r.Context(), "invalid page", slog.String("error", err.Error()))
 		}
 	}
 
@@ -86,13 +86,13 @@ func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		if pageSize, err := strconv.Atoi(pageSizeStr); err == nil {
 			req.PageSize = &pageSize
 		} else {
-			h.log.ErrorContext(r.Context(), "invalid pageSize", err.Error())
+			h.log.ErrorContext(r.Context(), "invalid pageSize", slog.String("error", err.Error()))
 		}
 	}
 
 	if err := validator.New().Struct(req); err != nil {
 		validateErr := err.(validator.ValidationErrors)
-		h.log.ErrorContext(r.Context(), "invalid request", validateErr.Error())
+		h.log.ErrorContext(r.Context(), "invalid request", slog.String("error", validateErr.Error()))
 
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_ = json2.NewEncoder(w).Encode(newErrorResponse(r.Context(), err))

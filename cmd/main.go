@@ -10,6 +10,7 @@ import (
 	"simple-tasks/internal/service"
 	"simple-tasks/internal/store"
 	"strconv"
+	"time"
 )
 
 type config struct {
@@ -55,11 +56,12 @@ func main() {
 		return middleware.LogMiddleware(log, h)
 	}
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", config.port),
-		Handler: middleware.RequestIdMiddleware(logMiddleware(mux)),
+		Addr:              fmt.Sprintf(":%d", config.port),
+		Handler:           middleware.RequestIdMiddleware(logMiddleware(mux)),
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	if err := server.ListenAndServe(); err != nil {
-		log.Error("%v", err)
+		log.Error("server failed", slog.String("error", err.Error()))
 	}
 }
