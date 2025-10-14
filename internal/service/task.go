@@ -15,6 +15,18 @@ type TaskService struct {
 	log  *slog.Logger
 }
 
+type NotFoundError struct{}
+
+func (e *NotFoundError) Error() string {
+	return "task not found"
+}
+
+type InternalError struct{}
+
+func (e *InternalError) Error() string {
+	return "internal error"
+}
+
 func NewTaskService(log *slog.Logger, repo store.TaskRepository) *TaskService {
 	return &TaskService{
 		log:  log,
@@ -33,19 +45,25 @@ func (s *TaskService) CreateTask(ctx context.Context, t *model.Task) *model.Task
 	return t
 }
 
-// TODO: Using DTO of model layer looks cringe
 func (s *TaskService) GetTasks(ctx context.Context, request *model.GetTasksRequest) *model.GetTasksResponse {
 	return s.repo.GetTasks(request)
 }
 
 func (s *TaskService) GetTaskById(ctx context.Context, uuid uuid.UUID) (*model.Task, error) {
-	return s.repo.GetTaskById(uuid)
+	task, err := s.repo.GetTaskById(uuid)
+	if errors.Is(err, &store.NotFoundError{}) {
+		return nil, &NotFoundError{}
+	} else if err != nil {
+		return nil, &InternalError{}
+	}
+
+	return task, nil
 }
 
 func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, request *model.UpdateTaskRequest) (*model.Task, error) {
 	task, err := s.GetTaskById(ctx, id)
 	if err != nil {
-		return nil, errors.New("task not found")
+		return nil, err
 	}
 
 	if request.Title != "" {
@@ -69,12 +87,23 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, request *mod
 
 	task.UpdatedAt = time.Now()
 
-	if err := s.repo.UpdateTask(task); err != nil {
-		return nil, err
+	err = s.repo.UpdateTask(task)
+	if errors.Is(err, &store.NotFoundError{}) {
+		return nil, &NotFoundError{}
+	} else if err != nil {
+		return nil, &InternalError{}
 	}
+
 	return task, nil
 }
 
-func (s *TaskService) DeleteTask(ctx context.Context, uuid uuid.UUID) {
-	s.repo.DeleteTask(uuid)
+func (s *TaskService) DeleteTask(ctx context.Context, uuid uuid.UUID) error {
+	err := s.repo.DeleteTask(uuid)
+	if errors.Is(err, &store.NotFoundError{}) {
+		return &NotFoundError{}
+	} else if err != nil {
+		return &InternalError{}
+	}
+
+	return nil
 }

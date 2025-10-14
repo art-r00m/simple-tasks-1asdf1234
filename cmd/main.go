@@ -33,12 +33,17 @@ func (c *config) String() string {
 	return fmt.Sprintf("port: %d", c.port)
 }
 
+func GetLog() *slog.Logger {
+	textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+	requestIdHandler := middleware.NewHandlerMiddleware(textHandler)
+
+	return slog.New(requestIdHandler)
+}
+
 func main() {
 	config := getConfig()
 
-	textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-	requestIdHandler := middleware.NewHandlerMiddleware(textHandler)
-	log := slog.New(requestIdHandler)
+	log := GetLog()
 	log.Info("starting server", slog.String("config", config.String()))
 
 	taskRepo := store.NewInMemoryTaskRepository()
