@@ -3,6 +3,7 @@ package handler
 import (
 	json2 "encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,16 +13,26 @@ import (
 	"simple-tasks/internal/service"
 	"simple-tasks/internal/store"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 )
 
-var log = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+func createTestHandler() *TaskHandler {
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	repo := store.NewInMemoryTaskRepository()
+	taskService := service.NewTaskService(log, repo)
+	handler := NewTaskHandler(log, taskService)
 
-var handler = NewTaskHandler(log,
-	service.NewTaskService(log, store.NewInMemoryTaskRepository()))
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /tasks/{id}", handler.GetTaskById)
+
+	return handler
+}
 
 func TestCreateTask(t *testing.T) {
+	handler := createTestHandler()
+
 	tests := []struct {
 		name           string
 		requestBody    string
@@ -86,22 +97,32 @@ var tasks = []string{
 	`{"title":"Уборка дома", "content":"генеральная уборка", "status":"todo"}`,
 }
 
-func addTasks() []string {
-	allTitles := make([]string, 0, len(tasks))
+func addTasks(handler *TaskHandler) []model.Task {
+	allTasks := make([]model.Task, 0, len(tasks))
 	for _, json := range tasks {
-		var task model.Task
-		_ = json2.NewDecoder(strings.NewReader(json)).Decode(&task)
-		allTitles = append(allTitles, task.Title)
 		req := httptest.NewRequest(http.MethodPost, "/tasks", strings.NewReader(json))
 		w := httptest.NewRecorder()
 		handler.CreateTask(w, req)
+
+		var createdTask model.Task
+		resp := w.Result()
+		_ = json2.NewDecoder(resp.Body).Decode(&createdTask)
+		allTasks = append(allTasks, createdTask)
 	}
-	slices.Sort(allTitles)
-	return allTitles
+	sort.Slice(allTasks, func(i, j int) bool {
+		return allTasks[i].Title < allTasks[j].Title
+	})
+	return allTasks
 }
 
 func TestGetTasks(t *testing.T) {
-	allTitles := addTasks()
+	handler := createTestHandler()
+
+	allTasks := addTasks(handler)
+	allTitles := make([]string, 0, len(allTasks))
+	for _, task := range allTasks {
+		allTitles = append(allTitles, task.Title)
+	}
 
 	tests := []struct {
 		name               string
@@ -170,6 +191,192 @@ func TestGetTasks(t *testing.T) {
 			}
 			if resp.Header.Get("Content-Type") != "application/json" {
 				t.Errorf("expected Content-Type application/json, got %s", resp.Header.Get("Content-Type"))
+			}
+		})
+	}
+}
+
+func TestGetTaskById(t *testing.T) {
+	handler := createTestHandler()
+
+	allTasks := addTasks(handler)
+
+	tests := []struct {
+		name           string
+		id             string
+		expectedTaskId string
+		expectedStatus int
+	}{
+		{
+			name:           "success get task by id",
+			id:             allTasks[0].Id.String(),
+			expectedTaskId: allTasks[0].Id.String(),
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "not found",
+			id:             uuid.New().String(),
+			expectedTaskId: uuid.Nil.String(),
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/tasks/", nil)
+			req.SetPathValue("id", tt.id)
+			w := httptest.NewRecorder()
+			handler.GetTaskById(w, req)
+			resp := w.Result()
+
+			var actualTask model.Task
+			err := json2.NewDecoder(resp.Body).Decode(&actualTask)
+			if err != nil {
+				t.Errorf("error reading response body: %v", err)
+			}
+
+			if actualTask.Id.String() != tt.expectedTaskId {
+				t.Errorf("expected task id %v, got %v", tt.expectedTaskId, actualTask.Id)
+			}
+			if resp.StatusCode != tt.expectedStatus {
+				t.Errorf("expected status %v, got %v", tt.expectedStatus, resp.StatusCode)
+			}
+			if resp.Header.Get("Content-Type") != "application/json" {
+				t.Errorf("expected Content-Type application/json, got %s", resp.Header.Get("Content-Type"))
+			}
+		})
+	}
+}
+
+func TestUpdateTask(t *testing.T) {
+	handler := createTestHandler()
+
+	allTasks := addTasks(handler)
+
+	tests := []struct {
+		name           string
+		updateBody     string
+		taskIdToUpdate string
+		expectedStatus int
+	}{
+		{
+			name:           "update task by id",
+			updateBody:     `{"status":"done","tags":["tag1","tag2"]}`,
+			taskIdToUpdate: allTasks[0].Id.String(),
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "not found task by id",
+			updateBody:     `{"status":"done","tags":["tag1","tag2"]}`,
+			taskIdToUpdate: uuid.New().String(),
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "validation error",
+			updateBody:     `{"status":"done","tags":["tag1erkljhklejrhilojreljkhlkjrtjklr5j","tag2"]}`,
+			taskIdToUpdate: uuid.New().String(),
+			expectedStatus: http.StatusUnprocessableEntity,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var updateRequest model.UpdateTaskRequest
+			_ = json2.NewDecoder(strings.NewReader(tt.updateBody)).Decode(&updateRequest)
+
+			req := httptest.NewRequest(http.MethodPatch, "/tasks/", strings.NewReader(tt.updateBody))
+			req.SetPathValue("id", tt.taskIdToUpdate)
+			w := httptest.NewRecorder()
+			handler.UpdateTask(w, req)
+			resp := w.Result()
+
+			if resp.StatusCode != tt.expectedStatus {
+				t.Errorf("expected status %v, got %v", tt.expectedStatus, resp.StatusCode)
+			} else if resp.StatusCode != http.StatusOK {
+				return
+			}
+
+			var actualTask model.Task
+			err := json2.NewDecoder(resp.Body).Decode(&actualTask)
+			if err != nil {
+				t.Errorf("error reading response body: %v", err)
+			}
+
+			if updateRequest.Title != "" {
+				if actualTask.Title != updateRequest.Title {
+					t.Errorf("expected title %v, got %v", updateRequest.Title, actualTask.Title)
+				}
+			}
+			if updateRequest.Content != "" {
+				if actualTask.Content != updateRequest.Content {
+					t.Errorf("expected content %v, got %v", updateRequest.Content, actualTask.Content)
+				}
+			}
+			if updateRequest.Status != "" {
+				if actualTask.Status != updateRequest.Status {
+					t.Errorf("expected status %v, got %v", updateRequest.Status, actualTask.Status)
+				}
+			}
+			if len(updateRequest.Tags) > 0 {
+				slices.Sort(updateRequest.Tags)
+				slices.Sort(actualTask.Tags)
+				if !slices.Equal(updateRequest.Tags, actualTask.Tags) {
+					t.Errorf("expected tags %v, got %v", updateRequest.Tags, actualTask.Tags)
+				}
+			}
+			if updateRequest.Priority != "" {
+				if actualTask.Priority != updateRequest.Priority {
+					t.Errorf("expected priority %v, got %v", updateRequest.Priority, actualTask.Priority)
+				}
+			}
+			if updateRequest.DueDate != nil {
+				if actualTask.DueDate != updateRequest.DueDate {
+					t.Errorf("expected due date %v, got %v", updateRequest.DueDate, actualTask.DueDate)
+				}
+			}
+
+			if resp.Header.Get("Content-Type") != "application/json" {
+				t.Errorf("expected Content-Type application/json, got %s", resp.Header.Get("Content-Type"))
+			}
+		})
+	}
+}
+
+func TestDeleteTask(t *testing.T) {
+	handler := createTestHandler()
+
+	allTasks := addTasks(handler)
+
+	tests := []struct {
+		name           string
+		taskIdToDelete string
+		expectedStatus int
+	}{
+		{
+			name:           "delete task by id",
+			taskIdToDelete: allTasks[0].Id.String(),
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:           "not found task by id",
+			taskIdToDelete: uuid.New().String(),
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			req := httptest.NewRequest(http.MethodPatch, "/tasks/", nil)
+			req.SetPathValue("id", tt.taskIdToDelete)
+			w := httptest.NewRecorder()
+			handler.DeleteTask(w, req)
+			resp := w.Result()
+
+			if resp.StatusCode != tt.expectedStatus {
+				t.Errorf("expected status %v, got %v", tt.expectedStatus, resp.StatusCode)
+			} else if resp.StatusCode != http.StatusOK {
+				return
 			}
 		})
 	}
