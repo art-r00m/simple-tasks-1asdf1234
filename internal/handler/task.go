@@ -59,7 +59,7 @@ func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	req := &model.GetTasksRequest{
 		Status: query.Get("status"),
-		Tags:   query["tags"],
+		Tags:   query["tag"],
 		Q:      query.Get("q"),
 		Sort:   query.Get("sort"),
 	}

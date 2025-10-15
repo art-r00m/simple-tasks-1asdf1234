@@ -36,8 +36,6 @@ func NewInMemoryTaskRepository() *InMemoryTaskRepository {
 	}
 }
 
-// TODO: errors
-
 func (r *InMemoryTaskRepository) SaveTask(task *model.Task) {
 	r.mu.Lock()
 	r.tasks[task.Id] = task
@@ -56,7 +54,10 @@ func (r *InMemoryTaskRepository) GetTasks(request *model.GetTasksRequest) *model
 
 		if len(request.Tags) > 0 {
 			slices.Sort(task.Tags)
-			if !slices.Equal(request.Tags, task.Tags) {
+			containsTag := slices.ContainsFunc(request.Tags, func(requestTag string) bool {
+				return slices.Contains(task.Tags, requestTag)
+			})
+			if !containsTag {
 				continue
 			}
 		}
