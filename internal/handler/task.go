@@ -14,6 +14,8 @@ import (
 	"strconv"
 )
 
+var validate *validator.Validate = validator.New()
+
 type TaskHandler struct {
 	log     *slog.Logger
 	service *service.TaskService
@@ -38,7 +40,7 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validator.New().Struct(newTask); err != nil {
+	if err := validate.Struct(newTask); err != nil {
 		h.log.ErrorContext(r.Context(), "invalid task", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -82,7 +84,7 @@ func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := validator.New().Struct(req); err != nil {
+	if err := validate.Struct(req); err != nil {
 		h.log.ErrorContext(r.Context(), "invalid request", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -149,7 +151,7 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validator.New().Struct(req); err != nil {
+	if err := validate.Struct(req); err != nil {
 		h.log.ErrorContext(r.Context(), "invalid task", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusUnprocessableEntity)
