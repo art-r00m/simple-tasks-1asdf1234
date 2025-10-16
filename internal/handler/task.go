@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	json2 "encoding/json"
 	"errors"
 	"fmt"
@@ -48,7 +47,7 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdTask := h.service.CreateTask(context.TODO(), &newTask)
+	createdTask := h.service.CreateTask(r.Context(), &newTask)
 
 	w.Header().Set("Location", fmt.Sprintf("/tasks/%s", createdTask.Id))
 	w.WriteHeader(http.StatusCreated)
@@ -92,7 +91,7 @@ func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tasks := h.service.GetTasks(context.TODO(), req)
+	tasks := h.service.GetTasks(r.Context(), req)
 
 	w.WriteHeader(http.StatusOK)
 	_ = json2.NewEncoder(w).Encode(tasks)
@@ -110,7 +109,7 @@ func (h *TaskHandler) GetTaskById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task, err := h.service.GetTaskById(context.TODO(), id)
+	task, err := h.service.GetTaskById(r.Context(), id)
 	if errors.Is(err, service.NotFoundError) {
 		h.log.ErrorContext(r.Context(), "task not found", slog.String("error", err.Error()))
 
@@ -159,7 +158,7 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newTask, err := h.service.UpdateTask(context.TODO(), id, &req)
+	newTask, err := h.service.UpdateTask(r.Context(), id, &req)
 	if errors.Is(err, service.NotFoundError) {
 		h.log.ErrorContext(r.Context(), "task update failed", slog.String("error", err.Error()))
 
@@ -190,7 +189,7 @@ func (h *TaskHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.DeleteTask(context.TODO(), id)
+	err = h.service.DeleteTask(r.Context(), id)
 	if errors.Is(err, service.NotFoundError) {
 		h.log.ErrorContext(r.Context(), "task delete failed", slog.String("error", err.Error()))
 

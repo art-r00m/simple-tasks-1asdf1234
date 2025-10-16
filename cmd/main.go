@@ -1,16 +1,20 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"simple-tasks/internal/config"
 	"simple-tasks/internal/handler"
 	"simple-tasks/internal/middleware"
 	"simple-tasks/internal/service"
 	"simple-tasks/internal/store"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -55,7 +59,22 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	if err := server.ListenAndServe(); err != nil {
-		log.Error("server failed", slog.String("error", err.Error()))
+	go func() {
+		if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+			log.Error("HTTP server error %v", slog.String("error", err.Error()))
+		}
+		log.Info("Stopped serving new connections")
+	}()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Error("HTTP shutdown error: %v", slog.String("error", err.Error()))
 	}
+	log.Info("Graceful shutdown complete")
 }
