@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"github.com/google/uuid"
 	"math"
 	"simple-tasks/internal/model"
@@ -10,11 +11,7 @@ import (
 	"sync"
 )
 
-type NotFoundError struct{}
-
-func (e *NotFoundError) Error() string {
-	return "task not found"
-}
+var NotFoundError = errors.New("task not found")
 
 type TaskRepository interface {
 	SaveTask(*model.Task)
@@ -122,7 +119,7 @@ func (r *InMemoryTaskRepository) GetTaskById(id uuid.UUID) (model.Task, error) {
 		return task, nil
 	}
 
-	return model.Task{}, &NotFoundError{}
+	return model.Task{}, NotFoundError
 }
 
 func (r *InMemoryTaskRepository) UpdateTask(newTask *model.Task) error {
@@ -130,7 +127,7 @@ func (r *InMemoryTaskRepository) UpdateTask(newTask *model.Task) error {
 	defer r.mu.Unlock()
 
 	if _, ok := r.tasks[newTask.Id]; !ok {
-		return &NotFoundError{}
+		return NotFoundError
 	}
 
 	r.tasks[newTask.Id] = *newTask
@@ -139,13 +136,13 @@ func (r *InMemoryTaskRepository) UpdateTask(newTask *model.Task) error {
 }
 
 func (r *InMemoryTaskRepository) DeleteTask(id uuid.UUID) error {
-	if _, err := r.GetTaskById(id); err != nil {
-		return err
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.tasks[id]; !ok {
+		return NotFoundError
 	}
 
-	r.mu.Lock()
 	delete(r.tasks, id)
-	r.mu.Unlock()
 
 	return nil
 }

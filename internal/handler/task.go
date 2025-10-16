@@ -111,7 +111,7 @@ func (h *TaskHandler) GetTaskById(w http.ResponseWriter, r *http.Request) {
 	}
 
 	task, err := h.service.GetTaskById(context.TODO(), id)
-	if errors.Is(err, &service.NotFoundError{}) {
+	if errors.Is(err, service.NotFoundError) {
 		h.log.ErrorContext(r.Context(), "task not found", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusNotFound)
@@ -160,7 +160,7 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newTask, err := h.service.UpdateTask(context.TODO(), id, &req)
-	if errors.Is(err, &service.NotFoundError{}) {
+	if errors.Is(err, service.NotFoundError) {
 		h.log.ErrorContext(r.Context(), "task update failed", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusNotFound)
@@ -191,7 +191,7 @@ func (h *TaskHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.service.DeleteTask(context.TODO(), id)
-	if errors.Is(err, &service.NotFoundError{}) {
+	if errors.Is(err, service.NotFoundError) {
 		h.log.ErrorContext(r.Context(), "task delete failed", slog.String("error", err.Error()))
 
 		w.WriteHeader(http.StatusNotFound)

@@ -10,21 +10,14 @@ import (
 	"time"
 )
 
+var (
+	NotFoundError = errors.New("task not found")
+	InternalError = errors.New("internal error")
+)
+
 type TaskService struct {
 	repo store.TaskRepository
 	log  *slog.Logger
-}
-
-type NotFoundError struct{}
-
-func (e *NotFoundError) Error() string {
-	return "task not found"
-}
-
-type InternalError struct{}
-
-func (e *InternalError) Error() string {
-	return "internal error"
 }
 
 func NewTaskService(log *slog.Logger, repo store.TaskRepository) *TaskService {
@@ -51,10 +44,10 @@ func (s *TaskService) GetTasks(ctx context.Context, request *model.GetTasksReque
 
 func (s *TaskService) GetTaskById(ctx context.Context, uuid uuid.UUID) (*model.Task, error) {
 	task, err := s.repo.GetTaskById(uuid)
-	if errors.Is(err, &store.NotFoundError{}) {
-		return nil, &NotFoundError{}
+	if errors.Is(err, store.NotFoundError) {
+		return nil, NotFoundError
 	} else if err != nil {
-		return nil, &InternalError{}
+		return nil, InternalError
 	}
 
 	return &task, nil
@@ -88,10 +81,10 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, request *mod
 	task.UpdatedAt = time.Now()
 
 	err = s.repo.UpdateTask(task)
-	if errors.Is(err, &store.NotFoundError{}) {
-		return nil, &NotFoundError{}
+	if errors.Is(err, store.NotFoundError) {
+		return nil, NotFoundError
 	} else if err != nil {
-		return nil, &InternalError{}
+		return nil, InternalError
 	}
 
 	return task, nil
@@ -99,10 +92,10 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, request *mod
 
 func (s *TaskService) DeleteTask(ctx context.Context, uuid uuid.UUID) error {
 	err := s.repo.DeleteTask(uuid)
-	if errors.Is(err, &store.NotFoundError{}) {
-		return &NotFoundError{}
+	if errors.Is(err, store.NotFoundError) {
+		return NotFoundError
 	} else if err != nil {
-		return &InternalError{}
+		return InternalError
 	}
 
 	return nil
