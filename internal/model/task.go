@@ -59,11 +59,11 @@ type GetTasksRequest struct {
 }
 
 type GetTasksResponse struct {
-	Tasks      []*Task `json:"items,omitempty"`
-	Page       *int    `json:"page,omitempty"`
-	PageSize   *int    `json:"pageSize,omitempty"`
-	Total      int     `json:"total"`
-	TotalPages *int    `json:"totalPages,omitempty"`
+	Tasks      []Task `json:"items,omitempty"`
+	Page       *int   `json:"page,omitempty"`
+	PageSize   *int   `json:"pageSize,omitempty"`
+	Total      int    `json:"total"`
+	TotalPages *int   `json:"totalPages,omitempty"`
 }
 
 type UpdateTaskRequest struct {

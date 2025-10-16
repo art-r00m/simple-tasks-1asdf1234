@@ -57,7 +57,7 @@ func (s *TaskService) GetTaskById(ctx context.Context, uuid uuid.UUID) (*model.T
 		return nil, &InternalError{}
 	}
 
-	return task, nil
+	return &task, nil
 }
 
 func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, request *model.UpdateTaskRequest) (*model.Task, error) {

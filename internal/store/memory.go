@@ -19,34 +19,34 @@ func (e *NotFoundError) Error() string {
 type TaskRepository interface {
 	SaveTask(*model.Task)
 	GetTasks(*model.GetTasksRequest) *model.GetTasksResponse
-	GetTaskById(uuid.UUID) (*model.Task, error)
+	GetTaskById(uuid.UUID) (model.Task, error)
 	UpdateTask(*model.Task) error
 	DeleteTask(uuid.UUID) error
 }
 
 type InMemoryTaskRepository struct {
 	mu    sync.RWMutex
-	tasks map[uuid.UUID]*model.Task
+	tasks map[uuid.UUID]model.Task
 }
 
 func NewInMemoryTaskRepository() *InMemoryTaskRepository {
 	return &InMemoryTaskRepository{
 		mu:    sync.RWMutex{},
-		tasks: make(map[uuid.UUID]*model.Task),
+		tasks: make(map[uuid.UUID]model.Task),
 	}
 }
 
 func (r *InMemoryTaskRepository) SaveTask(task *model.Task) {
 	r.mu.Lock()
-	r.tasks[task.Id] = task
+	r.tasks[task.Id] = *task
 	r.mu.Unlock()
 }
 
 func (r *InMemoryTaskRepository) GetTasks(request *model.GetTasksRequest) *model.GetTasksResponse {
 	slices.Sort(request.Tags)
-	tasks := make([]*model.Task, 0)
+	tasks := make([]model.Task, 0)
 
-	r.mu.RLock()
+	r.mu.Lock()
 	for _, task := range r.tasks {
 		if request.Status != "" && task.Status != request.Status {
 			continue
@@ -72,7 +72,7 @@ func (r *InMemoryTaskRepository) GetTasks(request *model.GetTasksRequest) *model
 
 		tasks = append(tasks, task)
 	}
-	r.mu.RUnlock()
+	r.mu.Unlock()
 
 	total := len(tasks)
 	var totalPages *int
@@ -113,24 +113,25 @@ func (r *InMemoryTaskRepository) GetTasks(request *model.GetTasksRequest) *model
 	}
 }
 
-func (r *InMemoryTaskRepository) GetTaskById(id uuid.UUID) (*model.Task, error) {
+func (r *InMemoryTaskRepository) GetTaskById(id uuid.UUID) (model.Task, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if task, ok := r.tasks[id]; ok {
 		return task, nil
 	}
 
-	return nil, &NotFoundError{}
+	return model.Task{}, &NotFoundError{}
 }
 
 func (r *InMemoryTaskRepository) UpdateTask(newTask *model.Task) error {
-	if _, err := r.GetTaskById(newTask.Id); err != nil {
-		return err
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, ok := r.tasks[newTask.Id]; !ok {
+		return &NotFoundError{}
 	}
 
-	r.mu.Lock()
-	r.tasks[newTask.Id] = newTask
-	r.mu.Unlock()
+	r.tasks[newTask.Id] = *newTask
 
 	return nil
 }
