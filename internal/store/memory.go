@@ -46,16 +46,18 @@ func (r *InMemoryTaskRepository) GetTasks(request *model.GetTasksRequest) *model
 	slices.Sort(request.Tags)
 	tasks := make([]model.Task, 0)
 
-	r.mu.Lock()
+	r.mu.RLock()
 	for _, task := range r.tasks {
 		if request.Status != "" && task.Status != request.Status {
 			continue
 		}
 
 		if len(request.Tags) > 0 {
-			slices.Sort(task.Tags)
+			tagsCopy := make([]string, len(task.Tags))
+			copy(tagsCopy, task.Tags)
+			slices.Sort(tagsCopy)
 			containsTag := slices.ContainsFunc(request.Tags, func(requestTag string) bool {
-				return slices.Contains(task.Tags, requestTag)
+				return slices.Contains(tagsCopy, requestTag)
 			})
 			if !containsTag {
 				continue
@@ -72,7 +74,7 @@ func (r *InMemoryTaskRepository) GetTasks(request *model.GetTasksRequest) *model
 
 		tasks = append(tasks, task)
 	}
-	r.mu.Unlock()
+	r.mu.RUnlock()
 
 	total := len(tasks)
 	var totalPages *int
