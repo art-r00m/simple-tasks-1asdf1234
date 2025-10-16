@@ -14,7 +14,8 @@ type Config struct {
 func GetConfig() Config {
 	port, err := strconv.Atoi(os.Getenv("PORT"))
 	if err != nil {
-		log.Fatalf("invalid port: %v", err)
+		log.Printf("invalid port: %v, using default port 8080", err)
+		port = 8080
 	}
 
 	return Config{
