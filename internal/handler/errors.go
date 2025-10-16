@@ -7,27 +7,27 @@ import (
 	"simple-tasks/internal/middleware"
 )
 
-type errorDetail struct {
+type ErrorDetail struct {
 	Field   string `json:"field"`
 	Rule    string `json:"rule"`
 	Message string `json:"message"`
 }
 
-type errorInfo struct {
+type ErrorInfo struct {
 	Code    string        `json:"code"`
 	Message string        `json:"message"`
-	Details []errorDetail `json:"details,omitempty"`
+	Details []ErrorDetail `json:"details,omitempty"`
 }
 
-type errorResponse struct {
-	Error     errorInfo `json:"error"`
+type ErrorResponse struct {
+	Error     ErrorInfo `json:"error"`
 	RequestId string    `json:"requestId"`
 }
 
-type errType = int
+type ErrType = int
 
 const (
-	errorInvalidJson errType = iota
+	errorInvalidJson ErrType = iota
 	errorValidation
 	errorNotFound
 	errorBadRequest
@@ -42,17 +42,17 @@ var codeMap = map[int]string{
 	errorInternal:    "errorInternal",
 }
 
-func newError(ctx context.Context, errType errType, err error) *errorResponse {
+func newError(ctx context.Context, errType ErrType, err error) *ErrorResponse {
 	reqId, ok := ctx.Value(middleware.RequestId).(string)
 	if !ok {
 		reqId = ""
 	}
 
-	errResponse := &errorResponse{
-		Error: errorInfo{
+	errResponse := &ErrorResponse{
+		Error: ErrorInfo{
 			Code:    codeMap[errType],
 			Message: err.Error(),
-			Details: []errorDetail{},
+			Details: []ErrorDetail{},
 		},
 		RequestId: reqId,
 	}
@@ -63,9 +63,9 @@ func newError(ctx context.Context, errType errType, err error) *errorResponse {
 			return errResponse
 		}
 
-		details := make([]errorDetail, 0, len(errFields))
+		details := make([]ErrorDetail, 0, len(errFields))
 		for _, err := range errFields {
-			details = append(details, errorDetail{
+			details = append(details, ErrorDetail{
 				Field:   err.StructField(),
 				Rule:    err.ActualTag() + " " + err.Param(),
 				Message: err.Error(),
